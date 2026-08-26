@@ -156,7 +156,9 @@ export default function JobDetail() {
               <div className="screenshot-row">
                 {shots.map((shot) => (
                   <figure key={shot.viewport_name}>
-                    <img src={screenshotSrc(shot.url)} alt={shot.viewport_name} />
+                    <div className="screenshot-thumb">
+                      <img src={screenshotSrc(shot.url)} alt={shot.viewport_name} />
+                    </div>
                     <figcaption>{shot.viewport_name}</figcaption>
                   </figure>
                 ))}
@@ -205,7 +207,9 @@ export default function JobDetail() {
                 {execution && execution.evidence.screenshots.length > 0 && (
                   <div className="screenshot-row">
                     {execution.evidence.screenshots.map((url) => (
-                      <img key={url} src={screenshotSrc(url)} alt="preuve d'exécution" />
+                      <div key={url} className="screenshot-thumb">
+                        <img src={screenshotSrc(url)} alt="preuve d'exécution" />
+                      </div>
                     ))}
                   </div>
                 )}

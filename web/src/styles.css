@@ -230,10 +230,19 @@ tr:hover td {
   margin-top: 10px;
 }
 
-.screenshot-row img {
-  max-width: 220px;
+.screenshot-thumb {
+  width: 220px;
+  height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
   border-radius: 6px;
   border: 1px solid var(--border);
+}
+
+.screenshot-thumb img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .screenshot-row figure {

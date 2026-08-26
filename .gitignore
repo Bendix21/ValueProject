@@ -25,3 +25,13 @@ web/dist/
 qa_swarm_postgres_data/
 screenshots/
 *.log
+
+# Stage deliverables (personal, not project code)
+Journal_de_stage_*.docx
+Rapport_de_stage_*.pdf
+Rapport_de_stage_*.tex
+Rapport_de_stage_*.aux
+Rapport_de_stage_*.log
+Rapport_de_stage_*.out
+Rapport_de_stage_*.toc
+Documentation_technique_*.docx
