@@ -1,0 +1,27 @@
+# Secrets
+.env
+
+# Claude Code local state
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Node / web
+web/node_modules/
+web/dist/
+
+# IDE
+.idea/
+
+# Data
+qa_swarm_postgres_data/
+screenshots/
+*.log

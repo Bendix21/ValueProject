@@ -1,0 +1,140 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: qa
+      POSTGRES_PASSWORD: qa
+      POSTGRES_DB: qa_swarm
+    ports:
+      - "5433:5432"
+    volumes:
+      - qa_swarm_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qa -d qa_swarm"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  selenium-grid:
+    image: selenium/standalone-chrome:latest
+    shm_size: 2gb
+    ports:
+      - "4445:4444"
+    environment:
+      SE_NODE_MAX_SESSIONS: 2
+      SE_NODE_OVERRIDE_MAX_SESSIONS: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:4444/wd/hub/status"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  discovery-agent:
+    build:
+      context: .
+      dockerfile: agents/discovery-agent/Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      SELENIUM_GRID_URL: http://selenium-grid:4444
+      SCREENSHOT_ROOT: /data/screenshots
+      LMNR_PROJECT_API_KEY: ${LMNR_PROJECT_API_KEY:-}
+    volumes:
+      - qa_swarm_screenshots:/data/screenshots
+    depends_on:
+      selenium-grid:
+        condition: service_healthy
+
+  vision-agent:
+    build:
+      context: .
+      dockerfile: agents/vision-agent/Dockerfile
+    ports:
+      - "8002:8000"
+    environment:
+      OLLAMA_HOST: http://host.docker.internal:11434
+      LMNR_PROJECT_API_KEY: ${LMNR_PROJECT_API_KEY:-}
+    volumes:
+      - qa_swarm_screenshots:/data/screenshots:ro
+
+  generator-agent:
+    build:
+      context: .
+      dockerfile: agents/generator-agent/Dockerfile
+    ports:
+      - "8003:8000"
+    environment:
+      OLLAMA_HOST: http://host.docker.internal:11434
+      LMNR_PROJECT_API_KEY: ${LMNR_PROJECT_API_KEY:-}
+
+  validator-agent:
+    build:
+      context: .
+      dockerfile: agents/validator-agent/Dockerfile
+    ports:
+      - "8004:8000"
+    environment:
+      OLLAMA_HOST: http://host.docker.internal:11434
+      LMNR_PROJECT_API_KEY: ${LMNR_PROJECT_API_KEY:-}
+
+  selenium-executor-agent:
+    build:
+      context: .
+      dockerfile: agents/selenium-executor-agent/Dockerfile
+    ports:
+      - "8005:8000"
+    environment:
+      SELENIUM_GRID_URL: http://selenium-grid:4444
+      SCREENSHOT_ROOT: /data/screenshots
+      LMNR_PROJECT_API_KEY: ${LMNR_PROJECT_API_KEY:-}
+    volumes:
+      - qa_swarm_screenshots:/data/screenshots
+    depends_on:
+      selenium-grid:
+        condition: service_healthy
+
+  llm-judge-agent:
+    build:
+      context: .
+      dockerfile: agents/llm-judge-agent/Dockerfile
+    ports:
+      - "8006:8000"
+    environment:
+      OLLAMA_HOST: http://host.docker.internal:11434
+      LMNR_PROJECT_API_KEY: ${LMNR_PROJECT_API_KEY:-}
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DB_URL: postgresql://qa:qa@postgres:5432/qa_swarm
+      DISCOVERY_AGENT_URL: http://discovery-agent:8000/run
+      VISION_AGENT_URL: http://vision-agent:8000/run
+      GENERATOR_AGENT_URL: http://generator-agent:8000/run
+      VALIDATOR_AGENT_URL: http://validator-agent:8000/run
+      SELENIUM_EXECUTOR_AGENT_URL: http://selenium-executor-agent:8000/run
+      LLM_JUDGE_AGENT_URL: http://llm-judge-agent:8000/run
+      LMNR_PROJECT_API_KEY: ${LMNR_PROJECT_API_KEY:-}
+      SCREENSHOT_ROOT: /data/screenshots
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173
+    volumes:
+      - qa_swarm_screenshots:/data/screenshots:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: web
+    ports:
+      - "3000:80"
+    depends_on:
+      - orchestrator
+
+volumes:
+  qa_swarm_postgres_data:
+  qa_swarm_screenshots:

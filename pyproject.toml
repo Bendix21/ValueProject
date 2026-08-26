@@ -1,0 +1,31 @@
+[project]
+name = "qa-swarm"
+version = "0.1.0"
+description = "QA Swarm Autonomous - pipeline multi-agents de test QA piloté par LangGraph"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "langgraph>=0.2.60",
+    "langgraph-checkpoint-postgres>=2.0.13",
+    "psycopg[binary,pool]>=3.2",
+    "pydantic-settings>=2.5",
+    "httpx>=0.27",
+    "lmnr>=0.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

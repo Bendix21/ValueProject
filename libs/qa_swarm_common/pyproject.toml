@@ -1,0 +1,17 @@
+[project]
+name = "qa-swarm-common"
+version = "0.1.0"
+description = "Schémas et clients partagés entre l'orchestrateur et les agents QA Swarm"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.8",
+    "httpx>=0.27",
+    "lmnr>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qa_swarm_common"]
