@@ -128,6 +128,17 @@ export default function JobDetail() {
         </div>
       )}
 
+      {job.final_report && job.final_report.blocked_pages.length > 0 && (
+        <div className="failure-alert">
+          <p>⚠ {job.final_report.blocked_pages.length} page(s) bloquée(s) par un CAPTCHA/anti-bot — non testées :</p>
+          {job.final_report.blocked_pages.map((page) => (
+            <p key={page.url}>
+              <strong>{page.url}</strong>{page.reason ? ` — ${page.reason}` : ""}
+            </p>
+          ))}
+        </div>
+      )}
+
       {job.discovery_screenshots.length > 0 && (
         <section className="panel">
           <h2>Captures Discovery ({job.pages_tested} page(s))</h2>

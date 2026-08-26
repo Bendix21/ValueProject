@@ -108,8 +108,25 @@ def _validate_scenario(candidate: dict, known_selectors: set[str]) -> dict | Non
     }
 
 
+FALLBACK_ROLE_PRIORITY = {
+    "button": 0,
+    "submit_input": 0,
+    "link": 1,
+}
+FALLBACK_DEFAULT_ROLE_PRIORITY = 2
+
+
+def _fallback_target(elements: list[ElementInfo]) -> ElementInfo | None:
+    if not elements:
+        return None
+    return min(
+        elements,
+        key=lambda e: FALLBACK_ROLE_PRIORITY.get(e.dom_role, FALLBACK_DEFAULT_ROLE_PRIORITY),
+    )
+
+
 def _fallback_scenario(elements: list[ElementInfo]) -> dict:
-    target = max(elements, key=lambda e: e.confidence_score, default=None)
+    target = _fallback_target(elements)
     if target is None:
         steps = [{"action": "wait", "target_selector": None, "value": "1000"}]
     else:

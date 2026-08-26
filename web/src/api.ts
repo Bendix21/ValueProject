@@ -117,6 +117,7 @@ export interface JobDetail {
     pages_tested: number;
     passed: number;
     failed: number;
+    blocked_pages: { url: string; reason: string | null }[];
   } | null;
   created_at: string;
   updated_at: string;

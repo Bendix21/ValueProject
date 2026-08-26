@@ -54,6 +54,7 @@ services:
       - "8002:8000"
     environment:
       OLLAMA_HOST: http://host.docker.internal:11434
+      VISION_MODEL: ${VISION_MODEL:-moondream}
       LMNR_PROJECT_API_KEY: ${LMNR_PROJECT_API_KEY:-}
     volumes:
       - qa_swarm_screenshots:/data/screenshots:ro

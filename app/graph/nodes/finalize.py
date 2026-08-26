@@ -19,6 +19,12 @@ async def finalize_node(state: QAState) -> dict:
         else:
             final_status = "completed"
 
+        blocked_pages = [
+            {"url": url, "reason": page.get("block_reason")}
+            for url, page in state["pages"].items()
+            if page.get("blocked")
+        ]
+
         final_report = {
             "job_id": state["job_id"],
             "target_url": state["target_url"],
@@ -26,6 +32,7 @@ async def finalize_node(state: QAState) -> dict:
             "scenario_count": len(state["scenarios"]),
             "passed": passed,
             "failed": failed,
+            "blocked_pages": blocked_pages,
         }
         if final_status != "completed":
             final_report["error"] = _last_error(state)

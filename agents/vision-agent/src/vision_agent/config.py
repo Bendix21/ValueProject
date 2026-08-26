@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,7 +13,7 @@ class Settings(BaseSettings):
     ocr_upscale_factor: int = 2
 
     ollama_host: str = "http://localhost:11434"
-    vlm_model: str = "moondream"
+    vlm_model: str = Field(default="moondream", validation_alias="VISION_MODEL")
     vlm_iou_threshold: float = 0.3
     vlm_max_crop_calls: int = 5
     vlm_timeout: float = 90.0

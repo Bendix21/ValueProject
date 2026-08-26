@@ -14,9 +14,14 @@ VISION_TIMEOUT = 600.0
 def dispatch_vision_pages(state: QAState) -> list[Send] | str:
     if state["status"] == "failed" or not state["pages"]:
         return "finalize"
+    testable_pages = [
+        page_url for page_url, page in state["pages"].items() if not page.get("blocked")
+    ]
+    if not testable_pages:
+        return "finalize"
     return [
         Send("vision_page", {**state, "current_page_url": page_url})
-        for page_url in state["pages"]
+        for page_url in testable_pages
     ]
 
 
