@@ -239,6 +239,19 @@ export default function JobDetail() {
                     <pre>{execution.evidence.network_errors.join("\n")}</pre>
                   </details>
                 )}
+                {execution && execution.evidence.dom_diffs.length > 0 && (
+                  <details className="console-logs">
+                    <summary>Changements DOM ({execution.evidence.dom_diffs.length})</summary>
+                    <pre>
+                      {execution.evidence.dom_diffs.map((diff, i) => (
+                        <div key={i} className={diff.op === "added" ? "dom-diff-added" : "dom-diff-removed"}>
+                          {diff.op === "added" ? "+ " : "- "}
+                          {diff.text}
+                        </div>
+                      ))}
+                    </pre>
+                  </details>
+                )}
               </div>
             );
           })}

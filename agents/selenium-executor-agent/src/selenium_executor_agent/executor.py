@@ -1,3 +1,4 @@
+import difflib
 import time
 
 from selenium import webdriver
@@ -114,6 +115,31 @@ def _register_network_errors(driver: webdriver.Remote) -> list[str]:
     return errors
 
 
+def _dom_text(driver: webdriver.Remote) -> str:
+    try:
+        return driver.execute_script("return document.body.innerText") or ""
+    except WebDriverException:
+        return ""
+
+
+def _dom_diff(before: str, after: str, limit: int = 50) -> list[dict]:
+    """Line-level diff of visible page text, not markup — markup diffs on a
+    real site are mostly framework noise (re-rendered attributes, reordered
+    wrapper divs) that swamps the signal QA actually cares about: text that
+    appeared or disappeared (an error banner, a newly revealed element)."""
+    before_lines = [line.strip() for line in before.splitlines() if line.strip()]
+    after_lines = [line.strip() for line in after.splitlines() if line.strip()]
+    diffs: list[dict] = []
+    for line in difflib.ndiff(before_lines, after_lines):
+        if line.startswith("+ "):
+            diffs.append({"op": "added", "text": line[2:]})
+        elif line.startswith("- "):
+            diffs.append({"op": "removed", "text": line[2:]})
+        if len(diffs) >= limit:
+            break
+    return diffs
+
+
 def _empty_evidence(url: str) -> dict:
     return {
         "screenshots": [],
@@ -153,6 +179,7 @@ def execute_scenario(job_id: str, target_url: str, scenario: dict) -> dict:
         driver.get(target_url)
         url_before = driver.current_url
         cookies_before = {cookie["name"]: cookie["value"] for cookie in driver.get_cookies()}
+        dom_text_before = _dom_text(driver)
         screenshots.append(_screenshot(driver, scenario_dir / "before.png"))
 
         for index, step in enumerate(scenario["steps"]):
@@ -173,6 +200,7 @@ def execute_scenario(job_id: str, target_url: str, scenario: dict) -> dict:
 
         url_after = driver.current_url
         cookies_after = {cookie["name"]: cookie["value"] for cookie in driver.get_cookies()}
+        dom_diffs = _dom_diff(dom_text_before, _dom_text(driver))
         screenshots.append(_screenshot(driver, scenario_dir / "after.png"))
     except WebDriverException as exc:
         return {
@@ -193,7 +221,7 @@ def execute_scenario(job_id: str, target_url: str, scenario: dict) -> dict:
 
     evidence = {
         "screenshots": screenshots,
-        "dom_diffs": [],
+        "dom_diffs": dom_diffs,
         "console_logs": console_logs,
         "network_errors": network_errors,
         "url_before": url_before,

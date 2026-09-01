@@ -339,3 +339,6 @@ tr:hover td {
   word-break: break-word;
   color: var(--text-dim);
 }
+
+.dom-diff-added { color: var(--green); }
+.dom-diff-removed { color: var(--red); }

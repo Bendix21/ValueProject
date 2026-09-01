@@ -60,10 +60,16 @@ export interface ValidationResult {
   approved: boolean;
 }
 
+export interface DomDiffEntry {
+  op: "added" | "removed";
+  text: string;
+}
+
 export interface EvidenceCapture {
   screenshots: string[];
   console_logs: string[];
   network_errors: string[];
+  dom_diffs: DomDiffEntry[];
   url_before: string;
   url_after: string;
   deterministic_signals: Record<string, unknown>;
