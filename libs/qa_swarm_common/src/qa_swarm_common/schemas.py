@@ -73,7 +73,7 @@ class EvidenceCapture(BaseModel):
     screenshots: list[str] = []
     dom_diffs: list[dict] = []
     console_logs: list[str] = []
-    network_log_path: str | None = None
+    network_errors: list[str] = []
     url_before: str
     url_after: str
     cookies_before: dict = {}

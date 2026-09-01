@@ -15,7 +15,7 @@ def _empty_evidence(url: str) -> dict:
         "screenshots": [],
         "dom_diffs": [],
         "console_logs": [],
-        "network_log_path": None,
+        "network_errors": [],
         "url_before": url,
         "url_after": url,
         "cookies_before": {},

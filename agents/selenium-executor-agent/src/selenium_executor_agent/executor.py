@@ -97,12 +97,29 @@ def _register_console_logs(driver: webdriver.Remote) -> list[str]:
     return logs
 
 
+def _register_network_errors(driver: webdriver.Remote) -> list[str]:
+    """Must be called before driver.get(). Uses the passive `response_completed`
+    event, not `add_response_handler` — the latter intercepts every response
+    and auto-continues it, and was observed to hang the whole BiDi connection
+    (`Timed out waiting for response to BiDi command`) rather than just log."""
+    errors: list[str] = []
+
+    def _on_response(event) -> None:
+        response = event.response or {}
+        status = response.get("status")
+        if status is not None and status >= 400:
+            errors.append(f"{status} {response.get('url', '')}")
+
+    driver.network.add_event_handler("response_completed", _on_response)
+    return errors
+
+
 def _empty_evidence(url: str) -> dict:
     return {
         "screenshots": [],
         "dom_diffs": [],
         "console_logs": [],
-        "network_log_path": None,
+        "network_errors": [],
         "url_before": url,
         "url_after": url,
         "cookies_before": {},
@@ -130,6 +147,7 @@ def execute_scenario(job_id: str, target_url: str, scenario: dict) -> dict:
     error_message = None
     failed_step_index = None
     console_logs = _register_console_logs(driver)
+    network_errors = _register_network_errors(driver)
 
     try:
         driver.get(target_url)
@@ -177,7 +195,7 @@ def execute_scenario(job_id: str, target_url: str, scenario: dict) -> dict:
         "screenshots": screenshots,
         "dom_diffs": [],
         "console_logs": console_logs,
-        "network_log_path": None,
+        "network_errors": network_errors,
         "url_before": url_before,
         "url_after": url_after,
         "cookies_before": cookies_before,

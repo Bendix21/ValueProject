@@ -91,7 +91,7 @@ EXECUTOR_TEMPLATE = {
             "screenshots": [],
             "dom_diffs": [],
             "console_logs": [],
-            "network_log_path": None,
+            "network_errors": [],
             "url_before": "https://example.com",
             "url_after": "https://example.com",
             "cookies_before": {},

@@ -63,6 +63,7 @@ export interface ValidationResult {
 export interface EvidenceCapture {
   screenshots: string[];
   console_logs: string[];
+  network_errors: string[];
   url_before: string;
   url_after: string;
   deterministic_signals: Record<string, unknown>;

@@ -233,6 +233,12 @@ export default function JobDetail() {
                     <pre>{execution.evidence.console_logs.join("\n")}</pre>
                   </details>
                 )}
+                {execution && execution.evidence.network_errors.length > 0 && (
+                  <details className="console-logs">
+                    <summary>Requêtes réseau en échec ({execution.evidence.network_errors.length})</summary>
+                    <pre>{execution.evidence.network_errors.join("\n")}</pre>
+                  </details>
+                )}
               </div>
             );
           })}
