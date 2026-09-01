@@ -123,6 +123,22 @@ export interface JobDetail {
   updated_at: string;
 }
 
+export interface TraceSpan {
+  span_id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  duration: number;
+  status: string;
+  trace_id: string;
+  parent_span_id: string;
+}
+
+export interface JobTrace {
+  enabled: boolean;
+  spans: TraceSpan[];
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -169,6 +185,10 @@ export function resumeJob(jobId: string) {
     `/jobs/${jobId}/resume`,
     { method: "POST" }
   );
+}
+
+export function getJobTrace(jobId: string) {
+  return request<JobTrace>(`/jobs/${jobId}/trace`);
 }
 
 export { API_BASE_URL };

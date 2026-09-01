@@ -268,3 +268,47 @@ tr:hover td {
   color: var(--text-dim);
   font-size: 13px;
 }
+
+.trace-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trace-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 70px;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.trace-name {
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trace-track {
+  position: relative;
+  height: 16px;
+  background: var(--bg-panel-2);
+  border-radius: 4px;
+}
+
+.trace-bar {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  min-width: 3px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+.trace-bar.pass { background: var(--green); }
+.trace-bar.fail { background: var(--red); }
+
+.trace-duration {
+  color: var(--text-dim);
+  text-align: right;
+}

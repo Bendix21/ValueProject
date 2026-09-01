@@ -4,13 +4,16 @@ import { useParams } from "react-router-dom";
 import {
   API_BASE_URL,
   JobDetail as JobDetailType,
+  JobTrace,
   TERMINAL_STATUSES,
   cancelJob,
   getJob,
+  getJobTrace,
   resumeJob,
   statusBadgeClass,
 } from "../api";
 import StatusTimeline from "../components/StatusTimeline";
+import TraceTimeline from "../components/TraceTimeline";
 
 function screenshotSrc(url: string): string {
   return url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
@@ -19,6 +22,7 @@ function screenshotSrc(url: string): string {
 export default function JobDetail() {
   const { jobId } = useParams<{ jobId: string }>();
   const [job, setJob] = useState<JobDetailType | null>(null);
+  const [trace, setTrace] = useState<JobTrace | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,6 +34,12 @@ export default function JobDetail() {
       setJob(data);
     } catch (err) {
       setError((err as Error).message);
+    }
+    try {
+      const traceData = await getJobTrace(jobId);
+      setTrace(traceData);
+    } catch {
+      // Trace fetch is best-effort — never block the job page on it.
     }
   }, [jobId]);
 
@@ -220,11 +230,15 @@ export default function JobDetail() {
       )}
 
       <section className="panel">
-        <h2>Traçabilité complète</h2>
-        <p className="muted">
-          Les traces détaillées (spans par agent) sont dans Laminar sous le job&nbsp;
-          <code>{job.job_id}</code> si le tracing est configuré.
-        </p>
+        <h2>Traçabilité complète (Laminar)</h2>
+        {trace && !trace.enabled && (
+          <p className="muted">
+            Tracing non configuré (renseigne <code>LMNR_PROJECT_API_KEY</code> dans <code>.env</code>{" "}
+            pour l'activer).
+          </p>
+        )}
+        {trace && trace.enabled && <TraceTimeline spans={trace.spans} />}
+        {!trace && <p className="muted">Chargement des traces…</p>}
       </section>
     </>
   );

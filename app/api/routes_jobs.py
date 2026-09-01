@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from app.config import get_settings
 from app.db import jobs_repo
 from app.graph.state import new_qa_state
+from app.observability_query import fetch_trace_spans
 
 logger = logging.getLogger(__name__)
 
@@ -186,4 +187,19 @@ async def get_job(job_id: str, request: Request):
         "final_report": state.get("final_report"),
         "created_at": state.get("created_at"),
         "updated_at": state.get("updated_at"),
+    }
+
+
+@router.get("/{job_id}/trace")
+async def get_job_trace(job_id: str, request: Request):
+    graph = request.app.state.graph
+    config = {"configurable": {"thread_id": job_id}}
+    snapshot = await graph.aget_state(config)
+    if not snapshot.values:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    spans = await fetch_trace_spans(job_id, request.app.state.http_client)
+    return {
+        "enabled": bool(get_settings().lmnr_project_api_key),
+        "spans": spans or [],
     }
