@@ -34,10 +34,10 @@ async def vision_page_node(state: QAState) -> dict:
         try:
             response = await call_agent(settings.vision_agent_url, payload, timeout=VISION_TIMEOUT)
         except AgentUnavailableError as exc:
-            failure_states = record_agent_failure(state["failure_states"], "vision", exc)
+            failure_states = record_agent_failure("vision", exc)
             return {"failure_states": failure_states}
 
-        failure_states = record_agent_success(state["failure_states"], "vision")
+        failure_states = record_agent_success("vision")
         return {
             "vision_results": {page_url: response["vision"]},
             "failure_states": failure_states,

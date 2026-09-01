@@ -357,3 +357,6 @@ async def test_circuit_breaker_trips_after_consecutive_failures(monkeypatch):
     # since the batch-level breaker check only happens once, at the fan-in in advance
     assert len(result["execution_results"]) == 3
     assert len(result["judge_verdicts"]) == 3
+    # regression: failure_states must count every concurrent branch's failure,
+    # not just the last one merged in (see merge_failure_states in resilience.py)
+    assert result["failure_states"]["validator"]["consecutive_failures"] == 3

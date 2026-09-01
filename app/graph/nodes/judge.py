@@ -10,9 +10,7 @@ from app.observability import traced_span
 JUDGE_TIMEOUT = 60.0
 
 
-async def run_judge(
-    job_id: str, scenario: dict, execution_result: dict, failure_states: dict
-) -> tuple[dict, dict]:
+async def run_judge(job_id: str, scenario: dict, execution_result: dict) -> tuple[dict, dict]:
     with traced_span("judge", session_id=job_id):
         scenario_id = scenario["scenario_id"]
         settings = get_settings()
@@ -25,7 +23,7 @@ async def run_judge(
         try:
             response = await call_agent(settings.llm_judge_agent_url, payload, timeout=JUDGE_TIMEOUT)
         except AgentUnavailableError as exc:
-            updated_failure_states = record_agent_failure(failure_states, "llm_judge", exc)
+            failure_delta = record_agent_failure("llm_judge", exc)
             verdict = {
                 "scenario_id": scenario_id,
                 "verdict": "fail",
@@ -33,8 +31,8 @@ async def run_judge(
                 "reasoning": f"{JUDGE_UNAVAILABLE_PREFIX} {exc}",
                 "confidence": 1.0,
             }
-            return verdict, updated_failure_states
+            return verdict, failure_delta
 
         verdict = response["judge_verdict"]
-        updated_failure_states = record_agent_success(failure_states, "llm_judge")
-        return verdict, updated_failure_states
+        failure_delta = record_agent_success("llm_judge")
+        return verdict, failure_delta

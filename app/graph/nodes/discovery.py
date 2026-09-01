@@ -23,7 +23,7 @@ async def discovery_node(state: QAState) -> dict:
                 settings.discovery_agent_url, payload, timeout=DISCOVERY_TIMEOUT
             )
         except AgentUnavailableError as exc:
-            failure_states = record_agent_failure(state["failure_states"], "discovery", exc)
+            failure_states = record_agent_failure("discovery", exc)
             return {
                 "status": "failed",
                 "failure_states": failure_states,

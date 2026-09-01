@@ -3,6 +3,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Annotated, Literal, TypedDict
 
+from app.graph.resilience import merge_failure_states
+
 
 class BBox(TypedDict):
     x: int
@@ -136,7 +138,7 @@ class QAState(TypedDict):
     validation_results: Annotated[dict[str, ValidationResult], merge_dicts]
     execution_results: Annotated[dict[str, ExecutionResult], merge_dicts]
     judge_verdicts: Annotated[dict[str, JudgeVerdict], merge_dicts]
-    failure_states: Annotated[dict[str, FailureState], merge_dicts]
+    failure_states: Annotated[dict[str, FailureState], merge_failure_states]
     circuit_breaker_tripped: bool
     final_report: dict | None
     created_at: str

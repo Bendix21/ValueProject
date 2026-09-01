@@ -34,10 +34,10 @@ async def generate_page_node(state: QAState) -> dict:
                 settings.generator_agent_url, payload, timeout=GENERATOR_TIMEOUT
             )
         except AgentUnavailableError as exc:
-            failure_states = record_agent_failure(state["failure_states"], "generator", exc)
+            failure_states = record_agent_failure("generator", exc)
             return {"failure_states": failure_states}
 
-        failure_states = record_agent_success(state["failure_states"], "generator")
+        failure_states = record_agent_success("generator")
         return {
             "scenarios": response["scenarios"],
             "failure_states": failure_states,

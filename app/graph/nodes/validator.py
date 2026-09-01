@@ -10,9 +10,7 @@ from app.observability import traced_span
 VALIDATOR_TIMEOUT = 60.0
 
 
-async def run_validator(
-    job_id: str, scenario: dict, vision: dict, failure_states: dict
-) -> tuple[dict, dict]:
+async def run_validator(job_id: str, scenario: dict, vision: dict) -> tuple[dict, dict]:
     with traced_span("validator", session_id=job_id):
         settings = get_settings()
         scenario_id = scenario["scenario_id"]
@@ -23,7 +21,7 @@ async def run_validator(
                 settings.validator_agent_url, payload, timeout=VALIDATOR_TIMEOUT
             )
         except AgentUnavailableError as exc:
-            updated_failure_states = record_agent_failure(failure_states, "validator", exc)
+            failure_delta = record_agent_failure("validator", exc)
             result = {
                 "scenario_id": scenario_id,
                 "deterministic_checks_passed": False,
@@ -32,8 +30,8 @@ async def run_validator(
                 "llm_review_notes": f"{VALIDATOR_UNAVAILABLE_PREFIX} {exc}",
                 "approved": False,
             }
-            return result, updated_failure_states
+            return result, failure_delta
 
         result = response["validation_result"]
-        updated_failure_states = record_agent_success(failure_states, "validator")
-        return result, updated_failure_states
+        failure_delta = record_agent_success("validator")
+        return result, failure_delta

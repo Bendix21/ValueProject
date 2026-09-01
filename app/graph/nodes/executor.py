@@ -25,7 +25,7 @@ def _empty_evidence(url: str) -> dict:
 
 
 async def run_executor(
-    job_id: str, target_url: str, scenario: dict, validation_result: dict, failure_states: dict
+    job_id: str, target_url: str, scenario: dict, validation_result: dict
 ) -> tuple[dict, dict]:
     with traced_span("executor", session_id=job_id):
         scenario_id = scenario["scenario_id"]
@@ -40,7 +40,7 @@ async def run_executor(
                 "evidence": _empty_evidence(target_url),
                 "error_message": f"skipped: rejected by validator ({'; '.join(reasons)})",
             }
-            return result, failure_states
+            return result, {}
 
         settings = get_settings()
         payload = {"job_id": job_id, "target_url": target_url, "scenario": scenario}
@@ -50,15 +50,15 @@ async def run_executor(
                 settings.selenium_executor_agent_url, payload, timeout=EXECUTOR_TIMEOUT
             )
         except AgentUnavailableError as exc:
-            updated_failure_states = record_agent_failure(failure_states, "selenium_executor", exc)
+            failure_delta = record_agent_failure("selenium_executor", exc)
             result = {
                 "scenario_id": scenario_id,
                 "status": "error",
                 "evidence": _empty_evidence(target_url),
                 "error_message": f"{EXECUTOR_UNAVAILABLE_PREFIX} {exc}",
             }
-            return result, updated_failure_states
+            return result, failure_delta
 
         result = response["execution_result"]
-        updated_failure_states = record_agent_success(failure_states, "selenium_executor")
-        return result, updated_failure_states
+        failure_delta = record_agent_success("selenium_executor")
+        return result, failure_delta
