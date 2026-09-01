@@ -32,8 +32,12 @@ export default function JobDetail() {
     try {
       const data = await getJob(jobId);
       setJob(data);
+      setError(null);
     } catch (err) {
-      setError((err as Error).message);
+      // Only surface the error if we have nothing to show yet — once a job
+      // has loaded once, a transient poll failure shouldn't blank the page;
+      // the next poll (2s later) retries anyway.
+      if (!job) setError((err as Error).message);
     }
     try {
       const traceData = await getJobTrace(jobId);
@@ -41,7 +45,7 @@ export default function JobDetail() {
     } catch {
       // Trace fetch is best-effort — never block the job page on it.
     }
-  }, [jobId]);
+  }, [jobId, job]);
 
   useEffect(() => {
     load();
