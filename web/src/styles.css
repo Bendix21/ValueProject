@@ -312,3 +312,30 @@ tr:hover td {
   color: var(--text-dim);
   text-align: right;
 }
+
+.console-logs {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.console-logs summary {
+  cursor: pointer;
+  color: var(--text-dim);
+}
+.console-logs summary:hover {
+  color: var(--text);
+}
+
+.console-logs pre {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-dim);
+}

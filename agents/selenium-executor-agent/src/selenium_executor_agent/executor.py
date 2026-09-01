@@ -13,7 +13,11 @@ from selenium_executor_agent.config import get_settings
 def _build_driver(grid_url: str) -> webdriver.Remote:
     options = Options()
     options.add_argument("--headless=new")
-    options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
+    # Classic `goog:loggingPrefs` + driver.get_log("browser") was removed from
+    # the Selenium 4 client entirely (AttributeError, not just empty results)
+    # — this project's console_logs field was silently empty on every job
+    # until switching to BiDi console message events instead.
+    options.web_socket_url = True
     return webdriver.Remote(command_executor=grid_url, options=options)
 
 
@@ -82,12 +86,15 @@ def _screenshot(driver: webdriver.Remote, path) -> str:
     return str(path)
 
 
-def _console_logs(driver: webdriver.Remote) -> list[str]:
-    try:
-        entries = driver.get_log("browser")
-    except Exception:
-        return []
-    return [f"[{entry['level']}] {entry['message']}" for entry in entries]
+def _register_console_logs(driver: webdriver.Remote) -> list[str]:
+    """Must be called before driver.get() so page-load console output is
+    captured too. BiDi delivers messages via callback as they happen, so the
+    returned list fills in live rather than being polled after the fact."""
+    logs: list[str] = []
+    driver.script.add_console_message_handler(
+        lambda entry: logs.append(f"[{entry.level}] {entry.text}")
+    )
+    return logs
 
 
 def _empty_evidence(url: str) -> dict:
@@ -122,6 +129,7 @@ def execute_scenario(job_id: str, target_url: str, scenario: dict) -> dict:
     status = "success"
     error_message = None
     failed_step_index = None
+    console_logs = _register_console_logs(driver)
 
     try:
         driver.get(target_url)
@@ -148,7 +156,6 @@ def execute_scenario(job_id: str, target_url: str, scenario: dict) -> dict:
         url_after = driver.current_url
         cookies_after = {cookie["name"]: cookie["value"] for cookie in driver.get_cookies()}
         screenshots.append(_screenshot(driver, scenario_dir / "after.png"))
-        console_logs = _console_logs(driver)
     except WebDriverException as exc:
         return {
             "scenario_id": scenario["scenario_id"],

@@ -227,6 +227,12 @@ export default function JobDetail() {
                     ))}
                   </div>
                 )}
+                {execution && execution.evidence.console_logs.length > 0 && (
+                  <details className="console-logs">
+                    <summary>Logs console ({execution.evidence.console_logs.length})</summary>
+                    <pre>{execution.evidence.console_logs.join("\n")}</pre>
+                  </details>
+                )}
               </div>
             );
           })}
