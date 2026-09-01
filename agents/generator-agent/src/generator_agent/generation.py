@@ -14,13 +14,47 @@ logger = logging.getLogger(__name__)
 ALLOWED_ACTIONS = {"click", "type", "select", "scroll", "wait", "assert", "assert_in_viewport"}
 SELECTOR_REQUIRED_ACTIONS = {"click", "type", "select", "assert", "assert_in_viewport"}
 VALUE_REQUIRED_ACTIONS = {"type", "select"}
+INTERACTION_ACTIONS = {"click", "type", "select"}
+
+# dom_role values (assigned by discovery-agent's roleFor) that accept a "type" step.
+# input elements are reported as "<type>_input"; <textarea> as "textbox"; ARIA
+# overrides may surface "textbox"/"searchbox".
+TYPEABLE_ROLES = {
+    "text_input",
+    "email_input",
+    "tel_input",
+    "number_input",
+    "password_input",
+    "search_input",
+    "url_input",
+    "date_input",
+    "time_input",
+    "datetime-local_input",
+    "month_input",
+    "week_input",
+    "color_input",
+    "textbox",
+    "textarea",
+    "searchbox",
+}
+SELECTABLE_ROLES = {"select", "combobox", "listbox"}
+
+# A scenario is never allowed to grow past this many steps.
+MAX_STEPS = 12
 
 PROMPT_TEMPLATE = """You are generating automated QA test scenarios for a web page.
 
 Page summary: {page_summary}
 
-Interactive elements available on the page (use ONLY these selectors, do not invent others):
+Interactive elements available on the page. Each line gives a CSS selector, its DOM \
+role, and its "kind" (what you are allowed to do with it):
 {elements}
+
+Element kinds:
+- kind=typeable   -> a text field. You MAY "type" a value into it. NEVER "click" it as \
+if it were a button.
+- kind=selectable -> a dropdown. You MAY "select" a value in it.
+- kind=clickable  -> a link, button or similar. You MAY "click" it. NEVER "type" into it.
 
 Respond with ONLY a single JSON object, no other text, in this exact shape:
 {{"scenarios": [{{"title": "short title", "description": "one sentence", \
@@ -29,37 +63,64 @@ Respond with ONLY a single JSON object, no other text, in this exact shape:
 "value": "<text value, or null>"}}], "expect_failure": false, "priority": 1}}]}}
 
 Rules:
-- Only use target_selector values from the list above, copied exactly as written.
-- "type" and "select" steps must have a non-null "value".
-- Order steps the way a real user actually would, in this order: first any "scroll" needed \
-to reveal a target, then the interaction with it ("click"/"type"/"select"), then any \
-"assert"/"assert_in_viewport" LAST, checking the outcome of the action(s) before them. Never \
-put a "click" on an element before the steps that lead a user to notice or reach it (e.g. \
-never click a "submit"/navigation element before filling in the fields it depends on).
-- Produce 1 to {max_scenarios} scenarios covering realistic user interactions with this page.
-- Set "expect_failure": true ONLY for a scenario whose steps submit invalid or incomplete \
-data into a real form element from the list above (e.g. leaving a required field empty, an \
-invalid email format) and that expects the submission to be rejected. Never set it true for \
-any other reason, and never invent a step that references something not in the list to \
-manufacture a failure - every target_selector must be a real, visible element from the list \
-above. If this page has no form to submit invalid data into, do not produce an \
-expect_failure scenario at all.
-- "assert" checks that an element is displayed (and optionally contains some text in \
-"value"). Use it by default for any element you expect is already visible without \
-scrolling (e.g. a top navigation link, a header, anything near the top of the page).
-- "assert_in_viewport" is ONLY for confirming a "scroll" step actually brought a \
-not-yet-visible element into view - use it ONLY for elements you have a real reason to \
-believe are NOT visible without scrolling (e.g. a footer link, or content revealed by a \
-same-page anchor link "#section"). Every "assert_in_viewport" step MUST be immediately \
-preceded by a "scroll" step with the exact same target_selector. Never use \
-"assert_in_viewport" on its own without that preceding "scroll" on the same element, and \
-never use it for elements likely already visible on page load - use plain "assert" for those.
+- Use target_selector values copied EXACTLY from the list above. Never invent one.
+- "type" is ONLY allowed on kind=typeable elements. "select" is ONLY allowed on \
+kind=selectable elements. If the list contains no typeable element, do NOT produce any \
+"type" step and do NOT produce an expect_failure scenario.
+- Build every scenario's steps in exactly this order:
+  1. an optional "scroll" to reveal an element far down the page,
+  2. the interactions a real user performs, in natural order - fill EVERY field with \
+"type" BEFORE the "click" that submits them,
+  3. every "assert" / "assert_in_viewport" LAST, checking the outcome of the steps above.
+  Never place an "assert" before the interaction it is meant to verify. Never click a \
+submit or navigation element before the fields it depends on are filled.
+- A "click" on a link (role=link) navigates away from this page; afterwards the elements \
+above no longer apply. Make a link "click" the LAST step of its scenario, with no steps \
+after it.
+- "assert" checks that an element is displayed (optionally containing the "value" text). \
+Use it for elements visible without scrolling (top navigation, headings).
+- "assert_in_viewport" ONLY confirms that a preceding "scroll" worked. Every \
+"assert_in_viewport" MUST be immediately preceded by a "scroll" step with the SAME \
+target_selector. Otherwise use plain "assert".
+- Set "expect_failure": true ONLY for a scenario that types invalid or incomplete data \
+into a real typeable element and then submits it, expecting rejection. Never otherwise.
+- Produce 1 to {max_scenarios} scenarios covering realistic user interactions.
+
+Good example (page has a search box [typeable] "#q" and a button [clickable] "#go"):
+{{"title": "Search for a product", "description": "User searches for a keyword.", \
+"steps": [{{"action": "type", "target_selector": "#q", "value": "shoes"}}, \
+{{"action": "click", "target_selector": "#go", "value": null}}, \
+{{"action": "assert", "target_selector": "#results", "value": null}}], \
+"expect_failure": false, "priority": 1}}
+
+Bad example (DO NOT do this - types into a link, asserts before acting, step after a \
+link click):
+{{"title": "bad", "description": "bad", \
+"steps": [{{"action": "assert", "target_selector": "nav a", "value": null}}, \
+{{"action": "type", "target_selector": "nav a", "value": "John"}}, \
+{{"action": "click", "target_selector": "nav a", "value": null}}, \
+{{"action": "assert", "target_selector": "footer", "value": null}}], \
+"expect_failure": false, "priority": 1}}
 """
+
+REPAIR_HINT = (
+    "Your previous response was not a single valid JSON object. Respond again with ONLY "
+    "the JSON object described above - no prose, no markdown fences."
+)
+
+
+def _role_kind(role: str) -> str:
+    if role in TYPEABLE_ROLES:
+        return "typeable"
+    if role in SELECTABLE_ROLES:
+        return "selectable"
+    return "clickable"
 
 
 def _format_elements(elements: list[ElementInfo]) -> str:
     lines = [
         f'- selector="{element.selector}" role={element.dom_role} '
+        f"kind={_role_kind(element.dom_role)} "
         f'label="{element.ocr_text or element.visual_role or element.dom_role}"'
         for element in elements
     ]
@@ -86,12 +147,13 @@ def _validate_step(step: dict, known_selectors: set[str]) -> dict | None:
 def _validate_scenario(candidate: dict, known_selectors: set[str]) -> dict | None:
     if not isinstance(candidate, dict):
         return None
+    # Drop individual malformed steps (bad action, unknown selector, missing value)
+    # rather than discarding the whole scenario over one bad step.
     steps = []
     for raw_step in candidate.get("steps", []):
         step = _validate_step(raw_step, known_selectors)
-        if step is None:
-            return None
-        steps.append(step)
+        if step is not None:
+            steps.append(step)
     if not steps:
         return None
 
@@ -105,6 +167,82 @@ def _validate_scenario(candidate: dict, known_selectors: set[str]) -> dict | Non
         "steps": steps,
         "expect_failure": bool(candidate.get("expect_failure", False)),
         "priority": priority,
+    }
+
+
+def _repair_scenario(scenario: dict, roles: dict[str, str]) -> dict | None:
+    """Deterministically rewrite an LLM scenario so it obeys the same rules the
+    validator-agent enforces: action/role compatibility, asserts last, a scroll
+    before every assert_in_viewport, a link click as the final step, and an
+    expect_failure flag that matches what the steps actually do. Returns None if
+    nothing viable remains."""
+    steps = [dict(step) for step in scenario["steps"][:MAX_STEPS]]
+
+    # 1. Drop type/select steps aimed at an element whose role does not support them
+    #    (e.g. "type" into an <a>).
+    kept: list[dict] = []
+    for step in steps:
+        kind = _role_kind(roles.get(step["target_selector"], ""))
+        if step["action"] == "type" and kind != "typeable":
+            continue
+        if step["action"] == "select" and kind != "selectable":
+            continue
+        kept.append(step)
+    steps = kept
+
+    # 2. Re-emit every assertion after the interactions it checks. A plain "assert"
+    #    moves to the end; an "assert_in_viewport" moves as a unit with a "scroll"
+    #    on the same selector immediately before it (reusing an existing one, or
+    #    synthesising it when the model omitted it).
+    interactions: list[dict] = []
+    plain_asserts: list[dict] = []
+    viewport_pairs: list[list[dict]] = []
+    for step in steps:
+        if step["action"] == "assert":
+            plain_asserts.append(step)
+        elif step["action"] == "assert_in_viewport":
+            if (
+                interactions
+                and interactions[-1]["action"] == "scroll"
+                and interactions[-1]["target_selector"] == step["target_selector"]
+            ):
+                scroll = interactions.pop()
+            else:
+                scroll = {
+                    "action": "scroll",
+                    "target_selector": step["target_selector"],
+                    "value": None,
+                }
+            viewport_pairs.append([scroll, step])
+        else:
+            interactions.append(step)
+    steps = interactions + plain_asserts + [s for pair in viewport_pairs for s in pair]
+
+    # 3. A link click navigates away; make it the last step of the scenario.
+    truncated: list[dict] = []
+    for step in steps:
+        truncated.append(step)
+        if step["action"] == "click" and roles.get(step["target_selector"]) == "link":
+            break
+    steps = truncated
+
+    # 4. Keep only scenarios that still perform a real interaction.
+    if not any(step["action"] in INTERACTION_ACTIONS for step in steps):
+        return None
+
+    # 5. expect_failure only survives if invalid data is typed and then submitted.
+    first_type = next((i for i, s in enumerate(steps) if s["action"] == "type"), None)
+    submits_after_type = first_type is not None and any(
+        step["action"] == "click" for step in steps[first_type + 1 :]
+    )
+    expect_failure = bool(scenario["expect_failure"] and submits_after_type)
+
+    return {
+        "title": scenario["title"],
+        "description": scenario["description"],
+        "steps": steps,
+        "expect_failure": expect_failure,
+        "priority": scenario["priority"],
     }
 
 
@@ -158,6 +296,41 @@ def _finalize_scenarios(raw_scenarios: list[dict], max_scenarios: int, page_url:
     ]
 
 
+async def _generate_json(client: OllamaClient, settings, prompt: str) -> dict | None:
+    """Ask Ollama for a JSON object, with one repair retry and raw-response logging
+    on parse failure."""
+    try:
+        raw = await client.generate(
+            settings.llm_model, prompt, format="json", options={"temperature": 0}
+        )
+    except httpx.HTTPError:
+        return None
+    parsed = parse_json_object(raw)
+    if parsed is not None:
+        return parsed
+
+    logger.warning(
+        "generator: LLM response not parseable as JSON, retrying once. Raw (truncated): %s",
+        (raw or "")[:500].replace("\n", " "),
+    )
+    try:
+        raw = await client.generate(
+            settings.llm_model,
+            f"{prompt}\n\n{REPAIR_HINT}",
+            format="json",
+            options={"temperature": 0},
+        )
+    except httpx.HTTPError:
+        return None
+    parsed = parse_json_object(raw)
+    if parsed is None:
+        logger.warning(
+            "generator: retry response also not parseable as JSON. Raw (truncated): %s",
+            (raw or "")[:500].replace("\n", " "),
+        )
+    return parsed
+
+
 async def _call_llm(
     client: OllamaClient,
     settings,
@@ -170,11 +343,7 @@ async def _call_llm(
         elements=_format_elements(elements),
         max_scenarios=max_scenarios,
     )
-    try:
-        raw = await client.generate(settings.llm_model, prompt)
-    except httpx.HTTPError:
-        return None
-    return parse_json_object(raw)
+    return await _generate_json(client, settings, prompt)
 
 
 async def generate_scenarios(
@@ -184,6 +353,7 @@ async def generate_scenarios(
     max_scenarios = max_scenarios or settings.max_scenarios
     visible_elements = [element for element in vision.enriched_elements if element.visible]
     known_selectors = {element.selector for element in visible_elements}
+    roles = {element.selector: element.dom_role for element in visible_elements}
 
     client = OllamaClient(settings.ollama_host, timeout=settings.generation_timeout)
     valid_scenarios: list[dict] = []
@@ -205,15 +375,22 @@ async def generate_scenarios(
             raw_candidates = parsed.get("scenarios", [])
             for candidate in raw_candidates:
                 validated = _validate_scenario(candidate, known_selectors)
-                if validated:
-                    valid_scenarios.append(validated)
-                else:
+                if validated is None:
                     logger.warning(
-                        "generator: rejected candidate scenario (invalid action/selector/value): %s",
+                        "generator: rejected candidate scenario (no valid steps): %s",
                         json.dumps(candidate)[:500],
                     )
+                    continue
+                repaired = _repair_scenario(validated, roles)
+                if repaired is None:
+                    logger.warning(
+                        "generator: candidate dropped by repair (no viable interaction left): %s",
+                        json.dumps(candidate)[:300],
+                    )
+                    continue
+                valid_scenarios.append(repaired)
             logger.info(
-                "generator: LLM proposed %d candidate scenario(s), %d passed validation "
+                "generator: LLM proposed %d candidate scenario(s), %d kept after repair "
                 "(max_scenarios=%d)",
                 len(raw_candidates),
                 len(valid_scenarios),
