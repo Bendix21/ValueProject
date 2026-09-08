@@ -100,6 +100,15 @@ input[type="number"] {
   width: 90px;
 }
 
+select {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
 button {
   background: var(--accent);
   color: white;
@@ -222,6 +231,55 @@ tr:hover td {
 }
 .chip.pass { color: var(--green); }
 .chip.fail { color: var(--red); }
+.chip.info { color: var(--accent); }
+
+.step-list {
+  margin: 0 0 10px;
+  padding-left: 20px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.step-list li { margin-bottom: 2px; }
+.step-list code {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--text);
+}
+
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.transcript-turn {
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+.transcript-turn p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
+.transcript-turn.user {
+  align-self: flex-end;
+  background: rgba(91, 140, 255, 0.12);
+}
+.transcript-turn.assistant {
+  align-self: flex-start;
+  background: var(--bg-panel);
+}
+.transcript-role {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+}
 
 .screenshot-row {
   display: flex;
@@ -232,7 +290,7 @@ tr:hover td {
 
 .screenshot-thumb {
   width: 220px;
-  height: 220px;
+  max-height: 220px;
   overflow-y: auto;
   overflow-x: hidden;
   border-radius: 6px;
@@ -243,6 +301,43 @@ tr:hover td {
   display: block;
   width: 100%;
   height: auto;
+  cursor: zoom-in;
+}
+
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  cursor: zoom-out;
+}
+
+.lightbox-image {
+  max-width: 92vw;
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 6px;
+  cursor: default;
+}
+
+.lightbox-close {
+  position: fixed;
+  top: 16px;
+  right: 20px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 32px;
+  line-height: 1;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.lightbox-close:hover {
+  filter: none;
+  color: var(--red);
 }
 
 .screenshot-row figure {

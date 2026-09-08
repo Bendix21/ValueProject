@@ -36,6 +36,7 @@ export default function JobList() {
       <thead>
         <tr>
           <th>URL cible</th>
+          <th>Type</th>
           <th>Pages</th>
           <th>Scénarios/page</th>
           <th>Statut</th>
@@ -48,7 +49,12 @@ export default function JobList() {
             <td>
               <Link to={`/jobs/${job.job_id}`}>{job.target_url}</Link>
             </td>
-            <td>{job.max_pages ?? "défaut"}</td>
+            <td>
+              <span className="chip info">
+                {job.target_type === "chatbot" ? "Chatbot" : "Application web"}
+              </span>
+            </td>
+            <td>{job.target_type === "chatbot" ? "1" : job.max_pages ?? "défaut"}</td>
             <td>{job.max_scenarios ?? "défaut"}</td>
             <td>
               <span className={`badge ${statusBadgeClass(job.status)}`}>{job.status}</span>

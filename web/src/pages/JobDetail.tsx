@@ -5,6 +5,7 @@ import {
   API_BASE_URL,
   JobDetail as JobDetailType,
   JobTrace,
+  NOVNC_URL,
   TERMINAL_STATUSES,
   cancelJob,
   getJob,
@@ -12,11 +13,28 @@ import {
   resumeJob,
   statusBadgeClass,
 } from "../api";
+import Lightbox from "../components/Lightbox";
 import StatusTimeline from "../components/StatusTimeline";
 import TraceTimeline from "../components/TraceTimeline";
 
 function screenshotSrc(url: string): string {
   return url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+}
+
+function screenshotLabel(url: string): string {
+  const name = url.split("/").pop() ?? "";
+  if (name.startsWith("before")) return "Avant";
+  if (name.startsWith("after")) return "Après";
+  const match = name.match(/failure-step-(\d+)/);
+  if (match) return `Échec à l'étape ${match[1]}`;
+  return "Capture";
+}
+
+interface DeterministicSignals {
+  url_changed?: boolean;
+  new_cookie_names?: string[];
+  changed_cookie_names?: string[];
+  failed_step_index?: number | null;
 }
 
 export default function JobDetail() {
@@ -26,6 +44,7 @@ export default function JobDetail() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
   const load = useCallback(async () => {
     if (!jobId) return;
@@ -98,8 +117,27 @@ export default function JobDetail() {
         <h2>Job {job.job_id}</h2>
         <p>
           <strong>{job.target_url}</strong>{" "}
-          <span className={`badge ${statusBadgeClass(job.status)}`}>{job.status}</span>
+          <span className={`badge ${statusBadgeClass(job.status)}`}>{job.status}</span>{" "}
+          <span className="chip info">
+            {job.target_type === "chatbot" ? "Chatbot" : "Application web"}
+          </span>
         </p>
+        {job.target_type === "chatbot" && !isTerminal && (
+          <p className="muted" style={{ marginTop: -4, marginBottom: 10 }}>
+            🖥 Le navigateur tourne en mode visible pour passer un éventuel captcha ou te
+            connecter —{" "}
+            <a
+              href={NOVNC_URL}
+              onClick={(event) => {
+                event.preventDefault();
+                window.open(NOVNC_URL, "qa-swarm-novnc");
+              }}
+            >
+              ouvrir la fenêtre noVNC
+            </a>
+            .
+          </p>
+        )}
         <StatusTimeline status={job.status} />
         <p className="muted" style={{ marginTop: 10 }}>
           {job.pages_tested} page(s){job.max_pages ? ` (max ${job.max_pages})` : ""} ·{" "}
@@ -171,7 +209,13 @@ export default function JobDetail() {
                 {shots.map((shot) => (
                   <figure key={shot.viewport_name}>
                     <div className="screenshot-thumb">
-                      <img src={screenshotSrc(shot.url)} alt={shot.viewport_name} />
+                      <img
+                        src={screenshotSrc(shot.url)}
+                        alt={shot.viewport_name}
+                        onClick={() =>
+                          setLightbox({ src: screenshotSrc(shot.url), alt: shot.viewport_name })
+                        }
+                      />
                     </div>
                     <figcaption>{shot.viewport_name}</figcaption>
                   </figure>
@@ -189,14 +233,39 @@ export default function JobDetail() {
             const validation = job.validation_results[scenario.scenario_id];
             const execution = job.execution_results[scenario.scenario_id];
             const verdict = job.judge_verdicts[scenario.scenario_id];
+            const signals = execution?.evidence.deterministic_signals as
+              | DeterministicSignals
+              | undefined;
             return (
               <div key={scenario.scenario_id} className="scenario-card">
                 <h3>{scenario.title}</h3>
                 <p className="muted" style={{ marginTop: -6, marginBottom: 6 }}>
-                  {scenario.page_url}
+                  {scenario.page_url} · priorité {scenario.priority}
                 </p>
                 <p className="desc">{scenario.description}</p>
+                {scenario.steps.length > 0 && (
+                  <ol className="step-list">
+                    {scenario.steps.map((step, i) => (
+                      <li key={i}>
+                        <code>{step.action}</code>
+                        {step.target_selector && (
+                          <>
+                            {" "}
+                            sur <code>{step.target_selector}</code>
+                          </>
+                        )}
+                        {step.value && (
+                          <>
+                            {" "}
+                            = <code>{JSON.stringify(step.value)}</code>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                )}
                 <div className="verdict-row">
+                  {scenario.expect_failure && <span className="chip info">échec attendu</span>}
                   {validation && (
                     <span className={`chip ${validation.approved ? "pass" : "fail"}`}>
                       Validation : {validation.approved ? "approuvée" : "rejetée"}
@@ -218,12 +287,61 @@ export default function JobDetail() {
                   <p className="muted">{validation.llm_review_notes}</p>
                 )}
                 {execution?.error_message && <p className="error-banner">{execution.error_message}</p>}
+                {execution && (
+                  <div className="verdict-row">
+                    <span className="muted">
+                      {execution.evidence.url_before}
+                      {" → "}
+                      {execution.evidence.url_after}
+                      {signals?.url_changed ? " (changée)" : ""}
+                    </span>
+                    {signals?.new_cookie_names && signals.new_cookie_names.length > 0 && (
+                      <span className="chip info">
+                        +cookie : {signals.new_cookie_names.join(", ")}
+                      </span>
+                    )}
+                    {signals?.changed_cookie_names && signals.changed_cookie_names.length > 0 && (
+                      <span className="chip info">
+                        cookie modifiée : {signals.changed_cookie_names.join(", ")}
+                      </span>
+                    )}
+                    {signals?.failed_step_index != null && (
+                      <span className="chip fail">
+                        échec à l'étape {signals.failed_step_index + 1}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {execution && execution.evidence.conversation_transcript.length > 0 && (
+                  <div className="transcript">
+                    {execution.evidence.conversation_transcript.map((turn, i) => (
+                      <div
+                        key={i}
+                        className={`transcript-turn ${turn.role === "user" ? "user" : "assistant"}`}
+                      >
+                        <span className="transcript-role">
+                          {turn.role === "user" ? "Utilisateur" : "Chatbot"}
+                        </span>
+                        <p>{turn.text || "(réponse vide)"}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {execution && execution.evidence.screenshots.length > 0 && (
                   <div className="screenshot-row">
                     {execution.evidence.screenshots.map((url) => (
-                      <div key={url} className="screenshot-thumb">
-                        <img src={screenshotSrc(url)} alt="preuve d'exécution" />
-                      </div>
+                      <figure key={url}>
+                        <div className="screenshot-thumb">
+                          <img
+                            src={screenshotSrc(url)}
+                            alt={screenshotLabel(url)}
+                            onClick={() =>
+                              setLightbox({ src: screenshotSrc(url), alt: screenshotLabel(url) })
+                            }
+                          />
+                        </div>
+                        <figcaption>{screenshotLabel(url)}</figcaption>
+                      </figure>
                     ))}
                   </div>
                 )}
@@ -269,6 +387,10 @@ export default function JobDetail() {
         {trace && trace.enabled && <TraceTimeline spans={trace.spans} />}
         {!trace && <p className="muted">Chargement des traces…</p>}
       </section>
+
+      {lightbox && (
+        <Lightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />
+      )}
     </>
   );
 }

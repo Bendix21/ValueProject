@@ -1,4 +1,5 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const NOVNC_URL = import.meta.env.VITE_NOVNC_URL ?? "http://localhost:7900";
 
 export type JobStatus =
   | "pending"
@@ -18,6 +19,8 @@ export type JobStatus =
 
 export const TERMINAL_STATUSES: JobStatus[] = ["completed", "failed", "circuit_broken", "cancelled"];
 
+export type TargetType = "web_app" | "chatbot";
+
 export function statusBadgeClass(status: JobStatus): string {
   if (status === "completed") return "badge-completed";
   if (status === "failed" || status === "circuit_broken") return "badge-circuit_broken";
@@ -29,6 +32,7 @@ export function statusBadgeClass(status: JobStatus): string {
 export interface JobSummary {
   job_id: string;
   target_url: string;
+  target_type: TargetType;
   max_scenarios: number | null;
   max_pages: number | null;
   created_at: string;
@@ -65,6 +69,11 @@ export interface DomDiffEntry {
   text: string;
 }
 
+export interface ConversationTurn {
+  role: string;
+  text: string;
+}
+
 export interface EvidenceCapture {
   screenshots: string[];
   console_logs: string[];
@@ -73,6 +82,7 @@ export interface EvidenceCapture {
   url_before: string;
   url_after: string;
   deterministic_signals: Record<string, unknown>;
+  conversation_transcript: ConversationTurn[];
 }
 
 export interface ExecutionResult {
@@ -106,6 +116,7 @@ export interface DiscoveryScreenshot {
 export interface JobDetail {
   job_id: string;
   target_url: string;
+  target_type: TargetType;
   status: JobStatus;
   max_scenarios: number | null;
   max_pages: number | null;
@@ -161,7 +172,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export function createJob(
   targetUrl: string,
   maxScenarios: number | null,
-  maxPages: number | null
+  maxPages: number | null,
+  targetType: TargetType = "web_app"
 ) {
   return request<{ job_id: string; status: JobStatus }>("/jobs", {
     method: "POST",
@@ -169,6 +181,7 @@ export function createJob(
       target_url: targetUrl,
       max_scenarios: maxScenarios,
       max_pages: maxPages,
+      target_type: targetType,
     }),
   });
 }
@@ -198,4 +211,4 @@ export function getJobTrace(jobId: string) {
   return request<JobTrace>(`/jobs/${jobId}/trace`);
 }
 
-export { API_BASE_URL };
+export { API_BASE_URL, NOVNC_URL };
