@@ -5,7 +5,7 @@ export default function App() {
     <div className="app-shell">
       <header className="app-header">
         <h1>
-          <Link to="/">QA Swarm Autonomous</Link>
+          <Link to="/">TestPilot</Link>
         </h1>
         <span className="muted">Nouveau job &amp; traçabilité</span>
       </header>

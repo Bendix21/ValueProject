@@ -1,7 +1,7 @@
 [project]
-name = "qa-swarm"
+name = "testpilot"
 version = "0.1.0"
-description = "QA Swarm Autonomous - pipeline multi-agents de test QA piloté par LangGraph"
+description = "TestPilot - pipeline multi-agents de test QA autonome piloté par LangGraph"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",

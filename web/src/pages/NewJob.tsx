@@ -21,7 +21,7 @@ export default function NewJob() {
       // Opened synchronously (before the createJob await) and reused via a
       // fixed window name so popup blockers don't intercept it and relaunching
       // a job doesn't pile up tabs.
-      window.open(NOVNC_URL, "qa-swarm-novnc");
+      window.open(NOVNC_URL, "testpilot-novnc");
     }
     try {
       const { job_id } = await createJob(

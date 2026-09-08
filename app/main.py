@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
             yield
 
 
-app = FastAPI(title="QA Swarm Autonomous", lifespan=lifespan)
+app = FastAPI(title="TestPilot", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in get_settings().cors_origins.split(",")],

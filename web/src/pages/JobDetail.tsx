@@ -130,7 +130,7 @@ export default function JobDetail() {
               href={NOVNC_URL}
               onClick={(event) => {
                 event.preventDefault();
-                window.open(NOVNC_URL, "qa-swarm-novnc");
+                window.open(NOVNC_URL, "testpilot-novnc");
               }}
             >
               ouvrir la fenêtre noVNC

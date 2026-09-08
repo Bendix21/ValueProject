@@ -1,4 +1,4 @@
-# QA Swarm Autonomous
+# TestPilot
 
 Système multi-agents autonome qui teste des applications web via un vrai
 navigateur (Selenium), piloté par un orchestrateur FastAPI + LangGraph
