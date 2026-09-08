@@ -21,7 +21,7 @@ async def health():
 async def run(request: DiscoveryRequest) -> DiscoveryResponse:
     with traced_span("discovery-agent.run", session_id=request.job_id):
         pages = await asyncio.to_thread(
-            crawl, request.job_id, request.target_url, request.max_pages
+            crawl, request.job_id, request.target_url, request.max_pages, request.target_type
         )
     return DiscoveryResponse(
         status="vision",

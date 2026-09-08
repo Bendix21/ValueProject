@@ -2,6 +2,7 @@ import time
 from urllib.parse import urljoin, urlparse, urlunparse
 
 from selenium import webdriver
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.options import Options
 
 from discovery_agent.config import get_settings
@@ -104,10 +105,33 @@ return null;
 """
 
 
-def _build_driver(grid_url: str) -> webdriver.Remote:
+def _build_driver(grid_url: str, headless: bool = True) -> webdriver.Remote:
     options = Options()
-    options.add_argument("--headless=new")
-    return webdriver.Remote(command_executor=grid_url, options=options)
+    if headless:
+        options.add_argument("--headless=new")
+    else:
+        # Headed sessions are for chatbot targets where a human needs to
+        # clear an anti-bot challenge (Cloudflare Turnstile, hCaptcha) via
+        # noVNC - see the matching comment in selenium-executor-agent's
+        # executor.py for why this is needed even for a real human's click.
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option("useAutomationExtension", False)
+    driver = webdriver.Remote(command_executor=grid_url, options=options)
+    if not headless:
+        try:
+            driver.execute_cdp_cmd(
+                "Page.addScriptToEvaluateOnNewDocument",
+                {
+                    "source": (
+                        "Object.defineProperty(navigator, 'webdriver', "
+                        "{get: () => undefined});"
+                    )
+                },
+            )
+        except WebDriverException:
+            pass  # best-effort - some grid setups don't expose CDP
+    return driver
 
 
 def _scroll_and_collect(driver: webdriver.Remote) -> list[dict]:
@@ -146,19 +170,37 @@ def _same_origin_links(raw_elements: list[dict], page_url: str) -> list[str]:
 
 
 def _capture_page(
-    driver: webdriver.Remote, job_id: str, page_url: str, page_index: int, settings
+    driver: webdriver.Remote,
+    job_id: str,
+    page_url: str,
+    page_index: int,
+    settings,
+    grace_seconds: float = 0,
 ) -> tuple[dict, list[str]]:
     viewports = []
     discovered_links: list[str] = []
     block_reason: str | None = None
+    session_cookies: list[dict] = []
 
-    for name, width, height in VIEWPORTS:
+    for viewport_index, (name, width, height) in enumerate(VIEWPORTS):
         driver.set_window_size(width, height)
         driver.get(page_url)
         time.sleep(SCROLL_WAIT_SECONDS)
 
+        if viewport_index == 0 and grace_seconds:
+            # Give a human time to clear a challenge / log in via noVNC
+            # before the very first challenge check or element scrape.
+            time.sleep(grace_seconds)
+
         if block_reason is None:
             block_reason = driver.execute_script(CHALLENGE_DETECTION_JS)
+            if viewport_index == 0 and grace_seconds and block_reason is None:
+                # Right after a human cleared the challenge / logged in during
+                # the grace pause: capture the now-authenticated cookies so
+                # later executor sessions (one fresh Selenium session per
+                # scenario, see executor.py) can restore them instead of
+                # requiring a fresh manual login every single time.
+                session_cookies = driver.get_cookies()
 
         full_page_height = driver.execute_script(
             "return Math.max(document.body.scrollHeight, "
@@ -197,6 +239,7 @@ def _capture_page(
                     "confidence_score": 1.0,
                     "visible": item["visible"],
                     "rendering_mismatch": False,
+                    "viewport_name": name,
                 }
                 for index, item in enumerate(raw_elements)
             ]
@@ -216,15 +259,22 @@ def _capture_page(
         "dom_snapshot_path": None,
         "blocked": block_reason is not None,
         "block_reason": block_reason,
+        "session_cookies": session_cookies,
     }
     return discovery_result, discovered_links
 
 
-def crawl(job_id: str, target_url: str, max_pages: int | None = None) -> list[dict]:
+def crawl(
+    job_id: str, target_url: str, max_pages: int | None = None, target_type: str = "web_app"
+) -> list[dict]:
     settings = get_settings()
     max_pages = max_pages or settings.max_pages
+    is_chatbot = target_type == "chatbot"
 
-    driver = _build_driver(settings.selenium_grid_url)
+    # Chatbot targets often sit behind an anti-bot challenge or a login wall
+    # that headless automation can never pass - run headed so a human can
+    # clear it via noVNC during the one-time grace pause on the first page.
+    driver = _build_driver(settings.selenium_grid_url, headless=not is_chatbot)
     pages: list[dict] = []
     visited: set[str] = set()
     queue: list[str] = [target_url]
@@ -237,7 +287,10 @@ def crawl(job_id: str, target_url: str, max_pages: int | None = None) -> list[di
                 continue
             visited.add(normalized)
 
-            discovery_result, links = _capture_page(driver, job_id, page_url, len(pages), settings)
+            grace_seconds = settings.chatbot_captcha_grace_seconds if is_chatbot and not pages else 0
+            discovery_result, links = _capture_page(
+                driver, job_id, page_url, len(pages), settings, grace_seconds
+            )
             pages.append(discovery_result)
 
             for link in links:
