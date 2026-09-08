@@ -1,4 +1,7 @@
+import json
+import logging
 import time
+from pathlib import Path
 from urllib.parse import urljoin, urlparse, urlunparse
 
 from selenium import webdriver
@@ -6,6 +9,8 @@ from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.options import Options
 
 from discovery_agent.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 VIEWPORTS = [
     ("desktop", 1920, 1080),
@@ -16,6 +21,55 @@ VIEWPORTS = [
 MAX_SCROLL_STEPS = 20
 SCROLL_WAIT_SECONDS = 0.3
 MAX_PAGE_HEIGHT = 15000
+
+COOKIE_ALLOWED_KEYS = {"name", "value", "path", "domain", "secure", "httpOnly", "expiry", "sameSite"}
+
+
+def _session_store_path(settings, target_url: str) -> Path:
+    """One JSON file per domain, under the same shared volume already used
+    for screenshots - avoids needing a separate docker volume just for this."""
+    domain = urlparse(target_url).netloc
+    store_dir = settings.screenshot_root / "_chatbot_sessions"
+    store_dir.mkdir(parents=True, exist_ok=True)
+    return store_dir / f"{domain}.json"
+
+
+def _load_persisted_cookies(settings, target_url: str) -> list[dict]:
+    path = _session_store_path(settings, target_url)
+    if not path.exists():
+        return []
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def _save_persisted_cookies(settings, target_url: str, cookies: list[dict]) -> None:
+    if not cookies:
+        return
+    try:
+        _session_store_path(settings, target_url).write_text(
+            json.dumps(cookies), encoding="utf-8"
+        )
+    except OSError:
+        pass
+
+
+def _restore_session_cookies(driver: webdriver.Remote, session_cookies: list[dict]) -> None:
+    """Best-effort, same pattern as selenium-executor-agent's own restore -
+    a stale expiry type or a domain mismatch for one cookie shouldn't cost
+    the rest."""
+    restored = 0
+    for cookie in session_cookies:
+        clean = {k: v for k, v in cookie.items() if k in COOKIE_ALLOWED_KEYS}
+        if "expiry" in clean and clean["expiry"] is not None:
+            clean["expiry"] = int(clean["expiry"])
+        try:
+            driver.add_cookie(clean)
+            restored += 1
+        except WebDriverException:
+            continue
+    logger.info("discovery: restored %d/%d persisted session cookies", restored, len(session_cookies))
 
 ELEMENT_QUERY_JS = """
 const selectorFor = (el) => {
@@ -176,16 +230,25 @@ def _capture_page(
     page_index: int,
     settings,
     grace_seconds: float = 0,
+    persisted_cookies: list[dict] | None = None,
 ) -> tuple[dict, list[str]]:
     viewports = []
     discovered_links: list[str] = []
     block_reason: str | None = None
     session_cookies: list[dict] = []
+    persisted_cookies = persisted_cookies or []
 
     for viewport_index, (name, width, height) in enumerate(VIEWPORTS):
         driver.set_window_size(width, height)
         driver.get(page_url)
         time.sleep(SCROLL_WAIT_SECONDS)
+
+        if viewport_index == 0 and persisted_cookies:
+            # Try a session saved from a previous job against this domain
+            # before falling back to a full manual login.
+            _restore_session_cookies(driver, persisted_cookies)
+            driver.get(page_url)
+            time.sleep(SCROLL_WAIT_SECONDS)
 
         if viewport_index == 0 and grace_seconds:
             # Give a human time to clear a challenge / log in via noVNC
@@ -279,6 +342,18 @@ def crawl(
     visited: set[str] = set()
     queue: list[str] = [target_url]
 
+    # A session saved from a previous job against this same domain lets most
+    # future jobs skip the manual login entirely - only a residual check
+    # (shorter grace pause) usually remains, not a full login.
+    persisted_cookies = _load_persisted_cookies(settings, target_url) if is_chatbot else []
+    grace_seconds_first_page = 0
+    if is_chatbot:
+        grace_seconds_first_page = (
+            settings.chatbot_reauth_grace_seconds
+            if persisted_cookies
+            else settings.chatbot_captcha_grace_seconds
+        )
+
     try:
         while queue and len(pages) < max_pages:
             page_url = queue.pop(0)
@@ -287,11 +362,20 @@ def crawl(
                 continue
             visited.add(normalized)
 
-            grace_seconds = settings.chatbot_captcha_grace_seconds if is_chatbot and not pages else 0
+            is_first_page = not pages
+            grace_seconds = grace_seconds_first_page if is_first_page else 0
             discovery_result, links = _capture_page(
-                driver, job_id, page_url, len(pages), settings, grace_seconds
+                driver,
+                job_id,
+                page_url,
+                len(pages),
+                settings,
+                grace_seconds,
+                persisted_cookies if is_first_page else [],
             )
             pages.append(discovery_result)
+            if is_first_page:
+                _save_persisted_cookies(settings, target_url, discovery_result["session_cookies"])
 
             for link in links:
                 if link not in visited and link not in queue:

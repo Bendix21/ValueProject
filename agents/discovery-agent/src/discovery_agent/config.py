@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # challenge / log in via the Selenium Grid's noVNC viewer, before
     # scraping elements or running the challenge detector.
     chatbot_captcha_grace_seconds: float = 30.0
+    # Used instead of chatbot_captcha_grace_seconds when a persisted session
+    # (from a previous job against the same domain) was restored - usually
+    # only a residual check remains, not a full login.
+    chatbot_reauth_grace_seconds: float = 45.0
 
 
 @lru_cache
