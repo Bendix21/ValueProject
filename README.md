@@ -103,3 +103,86 @@ Docker complète) se fait manuellement en frappant `POST /jobs`.
 - `POST /jobs/{job_id}/resume` → reprend un job interrompu depuis son dernier checkpoint
 - `GET /screenshots/{job_id}/...` → sert les captures d'écran (Discovery et preuves d'exécution)
 - `GET /health` → healthcheck
+
+## Mode chatbot (`target_type: "chatbot"`)
+
+En plus du mode générique (`web_app`, valeur par défaut) qui teste des sites via DOM et
+formulaires, le pipeline peut tester une interface de chatbot conversationnel (type ChatGPT) :
+un seul champ de saisie, des réponses qui apparaissent dans la page. Activé via
+`"target_type": "chatbot"` à la création du job (`POST /jobs`), ou via le sélecteur "Type de
+cible" du web UI.
+
+### Différences avec le mode `web_app`
+- `max_pages` est forcé à 1 — un chatbot est une seule surface conversationnelle, pas un site
+  à crawler.
+- Le `Scenario` utilise un jeu d'actions dédié : `send_message`, `wait_for_response`,
+  `assert_response`, `stop_generation`, `regenerate` (voir `libs/qa_swarm_common/schemas.py`).
+- Le navigateur (discovery-agent **et** selenium-executor-agent) tourne en **mode visible**
+  (pas `--headless`), car la plupart des chatbots sont protégés par un anti-bot (Cloudflare,
+  reCAPTCHA) ou nécessitent une connexion.
+
+### Vérification manuelle (captcha / connexion)
+Le projet ne tente jamais de contourner un anti-bot ou un captcha — la vérification est
+volontairement manuelle :
+- Une pause de grâce (`CHATBOT_CAPTCHA_GRACE_SECONDS`, 60s par défaut, voir
+  `docker-compose.yml`) démarre juste après le chargement de la page, avant toute action.
+- Pendant cette pause, connecte-toi via le viewer noVNC du conteneur Selenium Grid :
+  **http://localhost:7900** (aucun mot de passe). Le web UI l'ouvre automatiquement dans un
+  nouvel onglet au lancement d'un job chatbot (`web/src/pages/NewJob.tsx`).
+- **Une seule connexion suffit généralement pour tout le job** : discovery-agent capture les
+  cookies de session juste après avoir passé le captcha (`session_cookies` sur
+  `DiscoveryResult`), et l'orchestrateur les réinjecte automatiquement dans chaque session
+  Selenium d'exécution de scénario suivante. Quand des cookies sont disponibles, la pause de
+  grâce est plus courte (`chatbot_reauth_grace_seconds`, 45s) puisqu'il ne reste normalement
+  qu'un éventuel défi résiduel à passer, pas une connexion complète.
+- Chaque scénario ouvre malgré tout une session Selenium neuve (pas de profil partagé) — si
+  les cookies ne suffisent pas à repasser un challenge résiduel, il faut ré-intervenir
+  manuellement via noVNC.
+
+### DSL des scénarios chatbot
+
+| Action | `target_selector` | `value` | Effet |
+|---|---|---|---|
+| `send_message` | sélecteur du champ de saisie | texte du message | Tape le message et appuie sur Entrée |
+| `wait_for_response` | toujours `null` | timeout en ms (optionnel) | Attend que le texte de la page se stabilise (fin du streaming) |
+| `assert_response` | toujours `null` | sous-chaîne attendue, ou `null` | Vérifie qu'une réponse non vide est apparue (et la contient, si précisé) |
+| `stop_generation` | sélecteur du bouton stop | — | Clique sur le bouton d'arrêt de génération |
+| `regenerate` | sélecteur du bouton regénérer | — | Clique sur le bouton de régénération |
+
+`wait_for_response` et `assert_response` n'utilisent jamais de sélecteur précis : ils
+comparent le texte visible de toute la page avant/après (même mécanisme que `dom_diffs`),
+car discovery/vision ne détectent pas encore de rôle "conteneur de messages", seulement les
+éléments interactifs (champ de saisie, boutons).
+
+### Génération de scénarios
+En plus des scénarios de conversation classiques (question factuelle, échange multi-tours,
+cas limites comme un message très long ou quasi-vide), le générateur peut produire deux types
+de vérification supplémentaires :
+- **Fact-check** — une question à réponse vérifiable (le fait correct est indiqué dans la
+  `description` du scénario) ou une question sur un sujet fictif, pour détecter une
+  hallucination confiante plutôt qu'une réponse honnête ("je ne sais pas").
+- **Sécurité/refus** — une demande à laquelle l'assistant devrait normalement refuser de
+  répondre (instructions dangereuses, phishing, données personnelles, contenu haineux), posée
+  directement sans technique de contournement. Le judge vérifie que la réponse refuse/décline,
+  pas qu'elle exécute la demande.
+
+### Jugement sémantique
+Contrairement au mode `web_app` (qui vérifie des signaux déterministes comme un changement
+d'URL ou de cookies), un scénario chatbot réussi est jugé par un LLM local (`qwen2.5:3b` par
+défaut) qui évalue la cohérence, la pertinence et l'exactitude factuelle de la réponse — pas
+seulement sa présence (`CHATBOT_JUDGE_PROMPT` dans `agents/llm-judge-agent`). Le check
+`assert_response` reste une porte déterministe en amont : s'il échoue (réponse vide, ou
+sous-chaîne absente), l'exécution est en échec et le judge ne fait aucun appel LLM.
+
+### Limites connues
+- Le générateur (petit modèle 3B local) ne produit pas encore fiablement les scénarios
+  fact-check/sécurité malgré l'instruction explicite — il retombe souvent sur les catégories
+  de base seules.
+- Le judge sémantique (même classe de modèle) peut occasionnellement se tromper sur une
+  conversation multi-tours ou sous un prompt trop chargé — toujours vérifier
+  `execution_results[...].evidence.conversation_transcript` avant de faire confiance à un
+  verdict surprenant.
+- Aucun rôle "conteneur de messages" n'est encore détecté par discovery/vision :
+  `assert_response` compare tout le texte de la page, pas une zone précise.
+- Le texte capturé peut inclure l'écho d'interface du chatbot lui-même (ex : `"You said: ...
+  ChatGPT said: ..."` sur ChatGPT) en plus de la vraie réponse.

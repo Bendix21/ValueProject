@@ -17,6 +17,7 @@ dist/
 # Node / web
 web/node_modules/
 web/dist/
+web/tsconfig.tsbuildinfo
 
 # IDE
 .idea/
