@@ -138,6 +138,16 @@ volontairement manuelle :
 - Chaque scénario ouvre malgré tout une session Selenium neuve (pas de profil partagé) — si
   les cookies ne suffisent pas à repasser un challenge résiduel, il faut ré-intervenir
   manuellement via noVNC.
+- **La session est aussi réutilisée d'un job à l'autre**, pas seulement au sein d'un même
+  job : discovery-agent sauvegarde les cookies sur disque par domaine
+  (`_chatbot_sessions/<domaine>.json` sous le volume des captures d'écran) et les recharge au
+  début de chaque nouveau job ciblant le même domaine, avant même de déclencher la pause de
+  grâce. Tant que la session reste valide côté site, tu ne te reconnectes plus du tout. Note :
+  automatiser la saisie du mot de passe lui-même n'est volontairement pas fait (risque de
+  sécurité à stocker des identifiants réels, et probable violation des CGU du site cible) —
+  seule la réutilisation de cookies obtenus par une connexion manuelle est automatisée. Si une
+  session expire silencieusement (le site n'affiche pas toujours un vrai "captcha" pour une
+  session invalide), supprime le fichier JSON correspondant pour forcer une reconnexion.
 
 ### DSL des scénarios chatbot
 
