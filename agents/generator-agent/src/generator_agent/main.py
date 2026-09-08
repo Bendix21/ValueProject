@@ -20,7 +20,7 @@ async def health():
 async def run(request: GeneratorRequest) -> GeneratorResponse:
     with traced_span("generator-agent.run", session_id=request.job_id):
         scenarios = await generate_scenarios(
-            request.vision, request.target_url, request.max_scenarios
+            request.vision, request.target_url, request.max_scenarios, request.target_type
         )
     return GeneratorResponse(
         status="selecting",
