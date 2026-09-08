@@ -44,7 +44,7 @@ services:
       SELENIUM_GRID_URL: http://selenium-grid:4444
       SCREENSHOT_ROOT: /data/screenshots
       LMNR_PROJECT_API_KEY: ${LMNR_PROJECT_API_KEY:-}
-      CHATBOT_CAPTCHA_GRACE_SECONDS: ${CHATBOT_CAPTCHA_GRACE_SECONDS:-60}
+      CHATBOT_CAPTCHA_GRACE_SECONDS: ${CHATBOT_CAPTCHA_GRACE_SECONDS:-180}
     volumes:
       - qa_swarm_screenshots:/data/screenshots
     depends_on:
@@ -94,7 +94,7 @@ services:
       SELENIUM_GRID_URL: http://selenium-grid:4444
       SCREENSHOT_ROOT: /data/screenshots
       LMNR_PROJECT_API_KEY: ${LMNR_PROJECT_API_KEY:-}
-      CHATBOT_CAPTCHA_GRACE_SECONDS: ${CHATBOT_CAPTCHA_GRACE_SECONDS:-60}
+      CHATBOT_CAPTCHA_GRACE_SECONDS: ${CHATBOT_CAPTCHA_GRACE_SECONDS:-180}
     volumes:
       - qa_swarm_screenshots:/data/screenshots
     depends_on:
