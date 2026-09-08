@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -21,6 +22,7 @@ class CreateJobRequest(BaseModel):
     target_url: str
     max_scenarios: int | None = Field(default=None, ge=1, le=10)
     max_pages: int | None = Field(default=None, ge=1, le=20)
+    target_type: Literal["web_app", "chatbot"] = "web_app"
 
 
 def _log_task_exception(task: asyncio.Task) -> None:
@@ -69,6 +71,7 @@ async def create_job(payload: CreateJobRequest, request: Request):
         target_url=payload.target_url,
         max_scenarios=payload.max_scenarios,
         max_pages=payload.max_pages,
+        target_type=payload.target_type,
     )
     config = {
         "configurable": {"thread_id": state["job_id"]},
@@ -90,6 +93,7 @@ async def create_job(payload: CreateJobRequest, request: Request):
         payload.target_url,
         payload.max_scenarios,
         payload.max_pages,
+        payload.target_type,
     )
     return {"job_id": state["job_id"], "status": "pending"}
 
@@ -171,6 +175,7 @@ async def get_job(job_id: str, request: Request):
     return {
         "job_id": job_id,
         "target_url": state.get("target_url"),
+        "target_type": state.get("target_type", "web_app"),
         "status": state.get("status"),
         "max_scenarios": state.get("max_scenarios"),
         "max_pages": state.get("max_pages"),

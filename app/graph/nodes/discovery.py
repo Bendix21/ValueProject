@@ -6,7 +6,12 @@ from app.graph.resilience import record_agent_failure
 from app.graph.state import QAState
 from app.observability import traced_span
 
-DISCOVERY_TIMEOUT = 120.0
+# Must stay comfortably above discovery-agent's own
+# chatbot_captcha_grace_seconds (default 180s, see docker-compose.yml) plus
+# scrape/screenshot overhead - otherwise call_agent times out and retries
+# while the first attempt's browser session (and human solving a captcha in
+# it) is still legitimately in progress.
+DISCOVERY_TIMEOUT = 300.0
 
 
 async def discovery_node(state: QAState) -> dict:
@@ -16,6 +21,7 @@ async def discovery_node(state: QAState) -> dict:
             "job_id": state["job_id"],
             "target_url": state["target_url"],
             "max_pages": state.get("max_pages"),
+            "target_type": state.get("target_type", "web_app"),
         }
 
         try:

@@ -23,6 +23,7 @@ class ElementInfo(TypedDict):
     confidence_score: float
     visible: bool
     rendering_mismatch: bool
+    viewport_name: str
 
 
 class ViewportCapture(TypedDict):
@@ -37,6 +38,9 @@ class DiscoveryResult(TypedDict):
     target_url: str
     viewports: list[ViewportCapture]
     dom_snapshot_path: str | None
+    blocked: bool
+    block_reason: str | None
+    session_cookies: list[dict]
 
 
 class VisionResult(TypedDict):
@@ -46,7 +50,20 @@ class VisionResult(TypedDict):
 
 
 class ScenarioStep(TypedDict):
-    action: Literal["click", "type", "select", "scroll", "wait", "assert", "assert_in_viewport"]
+    action: Literal[
+        "click",
+        "type",
+        "select",
+        "scroll",
+        "wait",
+        "assert",
+        "assert_in_viewport",
+        "send_message",
+        "wait_for_response",
+        "assert_response",
+        "stop_generation",
+        "regenerate",
+    ]
     target_selector: str | None
     value: str | None
 
@@ -80,6 +97,7 @@ class EvidenceCapture(TypedDict):
     cookies_before: dict
     cookies_after: dict
     deterministic_signals: dict
+    conversation_transcript: list[dict]
 
 
 class ExecutionResult(TypedDict):
@@ -111,6 +129,7 @@ def merge_dicts(a: dict, b: dict) -> dict:
 class QAState(TypedDict):
     job_id: str
     target_url: str
+    target_type: Literal["web_app", "chatbot"]
     status: Literal[
         "pending",
         "discovering",
@@ -150,11 +169,16 @@ def new_qa_state(
     job_id: str | None = None,
     max_scenarios: int | None = None,
     max_pages: int | None = None,
+    target_type: Literal["web_app", "chatbot"] = "web_app",
 ) -> QAState:
     now = datetime.now(timezone.utc).isoformat()
+    # A chatbot is a single conversational surface, not a site to crawl.
+    if target_type == "chatbot":
+        max_pages = 1
     return {
         "job_id": job_id or str(uuid.uuid4()),
         "target_url": target_url,
+        "target_type": target_type,
         "status": "pending",
         "pages": {},
         "vision_results": {},

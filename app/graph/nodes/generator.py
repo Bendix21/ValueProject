@@ -27,6 +27,7 @@ async def generate_page_node(state: QAState) -> dict:
             "target_url": page_url,
             "vision": state["vision_results"][page_url],
             "max_scenarios": state.get("max_scenarios"),
+            "target_type": state.get("target_type", "web_app"),
         }
 
         try:

@@ -7,7 +7,12 @@ from app.graph.resilience import (
 )
 from app.observability import traced_span
 
-EXECUTOR_TIMEOUT = 90.0
+# Must stay comfortably above selenium-executor-agent's own
+# chatbot_captcha_grace_seconds (default 180s, see docker-compose.yml) plus
+# the time a multi-turn chatbot scenario's wait_for_response steps can take -
+# up to response_timeout_ms (default 60s) per turn - same reasoning as
+# DISCOVERY_TIMEOUT in discovery.py.
+EXECUTOR_TIMEOUT = 420.0
 
 
 def _empty_evidence(url: str) -> dict:
@@ -25,7 +30,11 @@ def _empty_evidence(url: str) -> dict:
 
 
 async def run_executor(
-    job_id: str, target_url: str, scenario: dict, validation_result: dict
+    job_id: str,
+    target_url: str,
+    scenario: dict,
+    validation_result: dict,
+    session_cookies: list[dict] | None = None,
 ) -> tuple[dict, dict]:
     with traced_span("executor", session_id=job_id):
         scenario_id = scenario["scenario_id"]
@@ -43,7 +52,12 @@ async def run_executor(
             return result, {}
 
         settings = get_settings()
-        payload = {"job_id": job_id, "target_url": target_url, "scenario": scenario}
+        payload = {
+            "job_id": job_id,
+            "target_url": target_url,
+            "scenario": scenario,
+            "session_cookies": session_cookies or [],
+        }
 
         try:
             response = await call_agent(

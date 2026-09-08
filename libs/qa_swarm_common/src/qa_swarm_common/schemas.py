@@ -20,6 +20,11 @@ class ElementInfo(BaseModel):
     confidence_score: float
     visible: bool
     rendering_mismatch: bool
+    # Which discovery viewport this element was found at ("desktop", "tablet",
+    # "mobile") - some sites render entirely different elements/selectors per
+    # breakpoint, so a selector found only at "mobile" will not exist in a
+    # session opened at desktop size.
+    viewport_name: str = "desktop"
 
 
 class ViewportCapture(BaseModel):
@@ -36,6 +41,10 @@ class DiscoveryResult(BaseModel):
     dom_snapshot_path: str | None = None
     blocked: bool = False
     block_reason: str | None = None
+    # Chatbot targets only: cookies captured right after a human cleared a
+    # challenge / logged in during discovery's grace pause, so later executor
+    # sessions can restore them instead of requiring a fresh login each time.
+    session_cookies: list[dict] = []
 
 
 class VisionResult(BaseModel):
@@ -45,7 +54,20 @@ class VisionResult(BaseModel):
 
 
 class ScenarioStep(BaseModel):
-    action: Literal["click", "type", "select", "scroll", "wait", "assert", "assert_in_viewport"]
+    action: Literal[
+        "click",
+        "type",
+        "select",
+        "scroll",
+        "wait",
+        "assert",
+        "assert_in_viewport",
+        "send_message",
+        "wait_for_response",
+        "assert_response",
+        "stop_generation",
+        "regenerate",
+    ]
     target_selector: str | None = None
     value: str | None = None
 
@@ -79,6 +101,7 @@ class EvidenceCapture(BaseModel):
     cookies_before: dict = {}
     cookies_after: dict = {}
     deterministic_signals: dict = {}
+    conversation_transcript: list[dict] = []
 
 
 class ExecutionResult(BaseModel):
@@ -100,6 +123,7 @@ class DiscoveryRequest(BaseModel):
     job_id: str
     target_url: str
     max_pages: int | None = None
+    target_type: Literal["web_app", "chatbot"] = "web_app"
 
 
 class DiscoveryResponse(BaseModel):
@@ -124,6 +148,7 @@ class GeneratorRequest(BaseModel):
     target_url: str
     vision: VisionResult
     max_scenarios: int | None = None
+    target_type: Literal["web_app", "chatbot"] = "web_app"
 
 
 class GeneratorResponse(BaseModel):
@@ -149,6 +174,7 @@ class ExecutorRequest(BaseModel):
     job_id: str
     target_url: str
     scenario: Scenario
+    session_cookies: list[dict] = []
 
 
 class ExecutorResponse(BaseModel):

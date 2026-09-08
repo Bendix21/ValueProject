@@ -23,8 +23,9 @@ async def run_scenario_node(state: QAState) -> dict:
     with traced_span(f"run_scenario:{scenario_id}", session_id=job_id):
         validation_result, delta = await run_validator(job_id, scenario, vision)
         failure_states = merge_failure_states(failure_states, delta)
+        session_cookies = state["pages"].get(page_url, {}).get("session_cookies", [])
         execution_result, delta = await run_executor(
-            job_id, page_url, scenario, validation_result
+            job_id, page_url, scenario, validation_result, session_cookies
         )
         failure_states = merge_failure_states(failure_states, delta)
         judge_verdict, delta = await run_judge(job_id, scenario, execution_result)
