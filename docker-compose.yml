@@ -20,9 +20,13 @@ services:
     shm_size: 2gb
     ports:
       - "4445:4444"
+      # noVNC viewer - open http://localhost:7900 to watch/solve an anti-bot
+      # challenge by hand during a chatbot job (headed session only).
+      - "7900:7900"
     environment:
       SE_NODE_MAX_SESSIONS: 2
       SE_NODE_OVERRIDE_MAX_SESSIONS: "true"
+      SE_VNC_NO_PASSWORD: "true"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:4444/wd/hub/status"]
       interval: 5s
@@ -40,6 +44,7 @@ services:
       SELENIUM_GRID_URL: http://selenium-grid:4444
       SCREENSHOT_ROOT: /data/screenshots
       LMNR_PROJECT_API_KEY: ${LMNR_PROJECT_API_KEY:-}
+      CHATBOT_CAPTCHA_GRACE_SECONDS: ${CHATBOT_CAPTCHA_GRACE_SECONDS:-60}
     volumes:
       - qa_swarm_screenshots:/data/screenshots
     depends_on:
@@ -89,6 +94,7 @@ services:
       SELENIUM_GRID_URL: http://selenium-grid:4444
       SCREENSHOT_ROOT: /data/screenshots
       LMNR_PROJECT_API_KEY: ${LMNR_PROJECT_API_KEY:-}
+      CHATBOT_CAPTCHA_GRACE_SECONDS: ${CHATBOT_CAPTCHA_GRACE_SECONDS:-60}
     volumes:
       - qa_swarm_screenshots:/data/screenshots
     depends_on:
