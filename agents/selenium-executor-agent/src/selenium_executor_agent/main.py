@@ -21,7 +21,11 @@ async def health():
 async def run(request: ExecutorRequest) -> ExecutorResponse:
     with traced_span("selenium-executor-agent.run", session_id=request.job_id):
         result = await asyncio.to_thread(
-            execute_scenario, request.job_id, request.target_url, request.scenario.model_dump()
+            execute_scenario,
+            request.job_id,
+            request.target_url,
+            request.scenario.model_dump(),
+            request.session_cookies,
         )
     return ExecutorResponse(
         status="judging",
